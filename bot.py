@@ -9,7 +9,7 @@ bot = telebot.TeleBot(API_TOKEN)
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     markup = InlineKeyboardMarkup()
-    kanal_tugmasi = InlineKeyboardButton(text="🎬 Boshqa Kinolar (Kanalimiz) 🎬", url="https://t.me/telegram")
+    kanal_tugmasi = InlineKeyboardButton(text="🎬 Boshqa Kinolar (Kanalimiz) 🎬", url="https://t.me/kinosearch_uz")
     markup.add(kanal_tugmasi)
     
     bot.send_message(
