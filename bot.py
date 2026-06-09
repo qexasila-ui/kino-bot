@@ -26,15 +26,15 @@ def check_code(message):
     user_text = message.text
 
     # 1-KINO (Video yuborish)
-    if user_text == "5117":
+    if user_text == "1":
         bot.send_video(
             message.chat.id, 
-            "BAACAgIAAxkBAAMIaiiMpDFceaBYhCSm6p9IOLkpZYcAAuOdAALoZkBJ6kR_a8dmtxo7BA", 
+            "", 
             caption="🎬 **Kino topildi!**\n\n🍿 Nomi: 'Farz' filmi (2026)\n🔥 Sifati: HD\n\nMarhamat, tomosha qiling!"
         )
         
     # 2-KINO
-    elif user_text == "1002":
+    elif user_text == "2":
         bot.reply_to(
             message,
             "🎬 **Kino topildi!**\n\n"
