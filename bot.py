@@ -4,7 +4,7 @@ import datetime
 import os
 
 # 1. SOZLAMALAR
-API_TOKEN = "8701965201:AAHAHaUiXmDM_aZmYS7nFiI9qKKrQcRImd4"
+API_TOKEN = "8888334220:AAEDAzYUSwQcSgvZ35zYWIdai-7K5wNfJC4"
 bot = telebot.TeleBot(API_TOKEN)
 CHANNEL = "@kinosearch_uz"
 ADMIN_ID = 7081484236
