@@ -3,7 +3,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import datetime
 import os
 
-API_TOKEN = "YANGI_TOKENINGIZNI_SHU_YERGA_YAZING"
+API_TOKEN = "8701965201:AAHAHaUiXmDM_aZmYS7nFiI9qKKrQcRImd4"
 bot = telebot.TeleBot(API_TOKEN)
 
 CHANNEL = "@kinosearch_uz"
