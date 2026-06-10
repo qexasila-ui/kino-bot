@@ -2,6 +2,8 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import datetime
 import os
+from flask import Flask
+from threading import Thread
 
 # SOZLAMALAR
 API_TOKEN = "8888334220:AAEDAzYUSwQcSgvZ35zYWIdai-7K5wNfJC4"
@@ -10,12 +12,13 @@ CHANNEL = "@kinosearch_uz"
 ADMIN_ID = 7081484236
 VIP_FILE = "vip_users.txt"
 
-# KINO BAZASI (file_id larni shu yerga qo'shib borasan)
+# KINO BAZASI
 kino_bazasi = {
     "1622": "BQACAgADGQEAAUwCU2oo0rWpLt9jc7yfs4G_QoJgXNjXAAIDnQACT49JSeGlY4zBwOMtAQAHbQADOwQ",
-    "777": "BQACAgIAAxkBAA..." # Boshqa kinolar uchun
+    "777": "BQACAgIAAxkBAA..."
 }
 
+# FAYLNI TEKSHIRISH
 if not os.path.exists(VIP_FILE):
     with open(VIP_FILE, "w") as f: pass
 
@@ -43,7 +46,7 @@ def show_subscribe_menu(message):
     markup.add(InlineKeyboardButton(text="💎 VIP Ta'riflar", callback_data="vip_info"))
     bot.send_message(message.chat.id, "⚠️ Botdan foydalanish uchun obuna bo'ling:", reply_markup=markup)
 
-# VIP VA KARTA HANDLERLARI
+# HANDLERLAR
 @bot.callback_query_handler(func=lambda call: call.data == "vip_info")
 def vip_info_handler(call):
     text = "💎 **VIP TA'RIFLAR**\n1 hafta - 5,000 so'm\n1 oy - 15,000 so'm\n\nTo'lov uchun karta:"
@@ -69,13 +72,11 @@ def process_receipt(message):
         bot.reply_to(message, "✅ Chek yuborildi!")
     else: bot.reply_to(message, "❌ Iltimos, rasm yuboring.")
 
-# KINO YUBORISH
 @bot.message_handler(func=lambda message: True)
 def check_code(message):
     if not check_subscription(message.from_user.id) and not is_vip(message.from_user.id):
         show_subscribe_menu(message)
         return
-    
     if message.text in kino_bazasi:
         bot.send_video(message.chat.id, kino_bazasi[message.text], caption="🎬 Marhamat!")
     else:
@@ -86,4 +87,16 @@ def get_id(message):
     if message.from_user.id == ADMIN_ID:
         bot.reply_to(message, f"ID: `{message.video.file_id}`", parse_mode="Markdown")
 
-bot.infinity_polling()
+# RENDER UCHUN SERVER QISMI
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run():
+    app.run(host='0.0.0.0', port=10000)
+
+if __name__ == "__main__":
+    t = Thread(target=run)
+    t.start()
+    bot.infinity_polling()
