@@ -1,7 +1,8 @@
-import telebot 
-from telebot.types  import InlineKeyboardMarkup, InlineKeyboardButton
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import datetime
 import os
+
 
 # 1. SOZLAMALAR
 API_TOKEN = "8701965201:AAHAHaUiXmDM_aZmYS7nFiI9qKKrQcRImd4"
