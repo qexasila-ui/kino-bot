@@ -2,6 +2,8 @@ import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import datetime
 import os
+from flask import Flask
+from threading import Thread
 
 # 1. SOZLAMALAR
 API_TOKEN = "8888334220:AAEDAzYUSwQcSgvZ35zYWIdai-7K5wNfJC4"
@@ -52,7 +54,7 @@ def vip_info_handler(call):
 
 @bot.callback_query_handler(func=lambda call: call.data == "pay_card")
 def pay_card_handler(call):
-    text = "💳 **KARTA MA'LUMOTLARI**\n\nKarta raqami: 4073420029671058\nEga: Boymurodova N.\n\nTo'lov qilganingizdan so'ng 'To'lov qildim' tugmasini bosing."
+    text = "💳 **KARTA MA'LUMOTLARI**\n\nKarta raqami: 8600123456789012\nEga: Pasha\n\nTo'lov qilganingizdan so'ng 'To'lov qildim' tugmasini bosing."
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="✅ To'lov qildim", callback_data="send_receipt"))
     markup.add(InlineKeyboardButton(text="⬅️ Ortga", callback_data="vip_info"))
@@ -66,7 +68,7 @@ def ask_receipt(call):
 def process_receipt(message):
     if message.photo:
         photo_id = message.photo[-1].file_id
-        bot.send_photo(ADMIN_ID, photo_id, caption=f"📥 **Yangi to'lov cheki!**\n👤 Foydalanuvchi ID: {message.chat.id}\n👤 Username: @{message.from_user.username}")
+        bot.send_photo(ADMIN_ID, photo_id, caption=f"📥 **Yangi to'lov cheki!**\n👤 Foydalanuvchi ID: {message.chat.id}")
         bot.reply_to(message, "✅ Chek adminlarga yuborildi. Tekshirilgach, VIP aktivlashtiriladi!")
     else:
         bot.reply_to(message, "❌ Iltimos, rasm (chek) yuboring!")
@@ -104,25 +106,29 @@ def start(message):
 
 @bot.message_handler(func=lambda message: True)
 def check_code(message):
-    # 1. Obuna va VIP holatini tekshirish
     if not check_subscription(message.from_user.id) and not is_vip(message.from_user.id):
         show_subscribe_menu(message)
         return
     
-    # 2. Foydalanuvchi yuborgan kodni tozalash (bo'sh joylarni olib tashlash)
-    kino_id = message.text.strip()
+    code = message.text.strip()
     
-    # 3. Kinoni bazadan qidirib yuborish
-    if kino_id in kino_bazasi:
-        try:
-            bot.send_video(
-                chat_id=message.chat.id, 
-                video=kino_bazasi[kino_id], 
-                caption="🎬 Marhamat, kinoyingiz!"
-            )
-        except Exception as e:
-            bot.reply_to(message, "❌ Kinoni yuborishda texnik xatolik yuz berdi.")
-            print(f"Xatolik: {e}")
+    if code == "1622":
+        bot.send_video(message.chat.id, " AAMCAgADGQEAAUwCU2oo0rWpLt9jc7yfs4G_QoJgXNjXAAIDnQACT49JSeGlY4zBwOMtAQAHbQADOwQ", caption="🎬 **Kino topildi!**\n\n🍿 Nomi: 'Chin muhabbat' filmi (2014)\n🔥 Sifati: 720HD")
+    elif code == "1002":
+        bot.send_video(message.chat.id, "BQACAgADGQEAAUwCU2oo0rWpLt9jc7yfs4G_QoJgXNjXAAIDnQACT49JSeGlY4zBwOMtAQAHbQADOwQ", caption="🎬 'Weak Hero Class 1' topildi!")
     else:
-        # Kod topilmasa
-        bot.reply_to(message, "❌ Bunday kodli kino topilmadi. Kodni tekshirib qayta yuboring.")
+        bot.reply_to(message, "❌ Kod topilmadi.")
+
+# RENDER SERVER QISMI
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Bot is running!"
+
+def run():
+    app.run(host='0.0.0.0', port=10000)
+
+if __name__ == "__main__":
+    t = Thread(target=run)
+    t.start()
+    bot.infinity_polling()
