@@ -1,5 +1,5 @@
 import telebot 
-from telebot.types InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import datetime
 import os
 
