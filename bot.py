@@ -3,7 +3,6 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 import datetime
 import os
 
-
 # 1. SOZLAMALAR
 API_TOKEN = "8701965201:AAHAHaUiXmDM_aZmYS7nFiI9qKKrQcRImd4"
 bot = telebot.TeleBot(API_TOKEN)
@@ -124,8 +123,8 @@ def check_code(message):
     if not check_subscription(message.from_user.id) and not is_vip(message.from_user.id):
         show_subscribe_menu(message)
         return
-    if message.text == "1": bot.reply_to(message, "🎬 'Weak Hero Class 1' topildi!")
-    elif message.text == "2": bot.reply_to(message, "🎬 'Spider-Man: No Way Home' topildi!")
+    if message.text == "1002": bot.reply_to(message, "🎬 'Weak Hero Class 1' topildi!")
+    elif message.text == "777": bot.reply_to(message, "🎬 'Spider-Man: No Way Home' topildi!")
     else: bot.reply_to(message, "❌ Kod topilmadi.")
 
 bot.infinity_polling()
