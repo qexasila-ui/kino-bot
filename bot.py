@@ -4,13 +4,12 @@ import datetime
 import os
 
 # 1. SOZLAMALAR
-API_TOKEN = "8888334220:AAEDAzYUSwQcSgvZ35zYWIdai-7K5wNfJC4" # Tokeningni kirit
+API_TOKEN = "8888334220:AAEDAzYUSwQcSgvZ35zYWIdai-7K5wNfJC4"
 bot = telebot.TeleBot(API_TOKEN)
 CHANNEL = "@kinosearch_uz"
 ADMIN_ID = 7081484236
 VIP_FILE = "vip_users.txt"
 
-# VIP faylini tekshirish
 if not os.path.exists(VIP_FILE):
     with open(VIP_FILE, "w") as f: pass
 
@@ -25,18 +24,16 @@ def is_vip(user_id):
         if ":" in line:
             uid, end_date = line.split(":")
             if str(user_id) == uid:
-                if today <= datetime.date.fromisoformat(end_date):
-                    return True
+                if today <= datetime.date.fromisoformat(end_date): return True
     return False
 
 def check_subscription(user_id):
     try:
         status = bot.get_chat_member(CHANNEL, user_id).status
         return status in ['member', 'administrator', 'creator']
-    except:
-        return False
+    except: return False
 
-# 2. ASOSIY FUNKSIYALAR
+# 2. MENU FUNKSIYALARI
 def show_subscribe_menu(message):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="✅ Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL[1:]}"))
@@ -44,37 +41,49 @@ def show_subscribe_menu(message):
     markup.add(InlineKeyboardButton(text="💎 VIP Ta'riflar", callback_data="vip_info"))
     bot.send_message(message.chat.id, "⚠️ Botdan foydalanish uchun obuna bo'ling yoki VIP ta'rifni tanlang:", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def check_sub_handler(call):
-    if check_subscription(call.message.chat.id):
-        bot.answer_callback_query(call.id, "✅ Rahmat! Endi botdan foydalanishingiz mumkin.")
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="👋 Xush kelibsiz! Kino kodini yuboring:")
-    else:
-        bot.answer_callback_query(call.id, "❌ Hali obuna bo'lmadingiz!", show_alert=True)
-
 @bot.callback_query_handler(func=lambda call: call.data == "vip_info")
 def vip_info_handler(call):
-    text = (
-        "💎 **VIP TA'RIFLAR**\n\n"
-        "• 1 hafta - 5,000 so'm\n"
-        "• 1 oy - 15,000 so'm\n"
-        "• 6 oy - 60,000 so'm\n\n"
-        "To'lov uchun admin bilan bog'laning: @kinosearch_admin"
-    )
+    text = "💎 **VIP TA'RIFLAR**\n\n• 1 hafta - 5,000 so'm\n• 1 oy - 15,000 so'm\n• 6 oy - 60,000 so'm"
     markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(text="💳 Karta orqali to'lov", callback_data="pay_card"))
     markup.add(InlineKeyboardButton(text="👤 Admin bilan bog'lanish", url="https://t.me/kinosearch_admin"))
     markup.add(InlineKeyboardButton(text="⬅️ Ortga", callback_data="back_to_menu"))
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup)
 
+@bot.callback_query_handler(func=lambda call: call.data == "pay_card")
+def pay_card_handler(call):
+    text = "💳 **KARTA MA'LUMOTLARI**\n\nKarta raqami: 8600123456789012\nEga: Pasha\n\nTo'lov qilganingizdan so'ng 'To'lov qildim' tugmasini bosing."
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(text="✅ To'lov qildim", callback_data="send_receipt"))
+    markup.add(InlineKeyboardButton(text="⬅️ Ortga", callback_data="vip_info"))
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "send_receipt")
+def ask_receipt(call):
+    bot.send_message(call.message.chat.id, "📸 Iltimos, to'lov chekini (screenshot) yuboring:")
+    bot.register_next_step_handler(call.message, process_receipt)
+
+def process_receipt(message):
+    if message.photo:
+        photo_id = message.photo[-1].file_id
+        bot.send_photo(ADMIN_ID, photo_id, caption=f"📥 **Yangi to'lov cheki!**\n👤 Foydalanuvchi ID: {message.chat.id}\n👤 Username: @{message.from_user.username}")
+        bot.reply_to(message, "✅ Chek adminlarga yuborildi. Tekshirilgach, VIP aktivlashtiriladi!")
+    else:
+        bot.reply_to(message, "❌ Iltimos, rasm (chek) yuboring!")
+
+# 3. ASOSIY HANDLERLAR
+@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
+def check_sub_handler(call):
+    if check_subscription(call.message.chat.id):
+        bot.answer_callback_query(call.id, "✅ Rahmat!")
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="👋 Xush kelibsiz! Kino kodini yuboring:")
+    else: bot.answer_callback_query(call.id, "❌ Hali obuna bo'lmadingiz!", show_alert=True)
+
 @bot.callback_query_handler(func=lambda call: call.data == "back_to_menu")
 def back_handler(call):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="✅ Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL[1:]}"))
-    markup.add(InlineKeyboardButton(text="🔄 Obuna bo'ldim", callback_data="check_sub"))
-    markup.add(InlineKeyboardButton(text="💎 VIP Ta'riflar", callback_data="vip_info"))
-    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="⚠️ Botdan foydalanish uchun obuna bo'ling yoki VIP ta'rifni tanlang:", reply_markup=markup)
+    show_subscribe_menu(call.message)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
 
-# 3. ADMIN BUYRUQLARI
 @bot.message_handler(commands=['addvip'])
 def add_vip(message):
     if message.from_user.id == ADMIN_ID:
@@ -87,16 +96,11 @@ def add_vip(message):
         except: bot.reply_to(message, "⚠️ Xato! /addvip [ID] [kun]")
     else: bot.reply_to(message, "❌ Siz admin emassiz!")
 
-@bot.message_handler(commands=['start', 'getid'])
-def general_handlers(message):
-    if message.text.startswith('/getid'):
-        if message.from_user.id == ADMIN_ID and message.reply_to_message:
-            bot.reply_to(message, f"👤 ID: {message.reply_to_message.from_user.id}")
-        else: bot.reply_to(message, f"🆔 Sizning ID: {message.from_user.id}")
-    else:
-        if not check_subscription(message.from_user.id) and not is_vip(message.from_user.id):
-            show_subscribe_menu(message)
-        else: bot.reply_to(message, "👋 Xush kelibsiz! Kino kodini yuboring:")
+@bot.message_handler(commands=['start'])
+def start(message):
+    if not check_subscription(message.from_user.id) and not is_vip(message.from_user.id):
+        show_subscribe_menu(message)
+    else: bot.reply_to(message, "👋 Xush kelibsiz! Kino kodini yuboring:")
 
 @bot.message_handler(func=lambda message: True)
 def check_code(message):
