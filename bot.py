@@ -1,116 +1,92 @@
 import telebot
 from telebot import types
 import random
+import time
 
 TOKEN = "8816384633:AAEVwVo_LOyXjM-41Ob1AyccTYkiBqQd31I"
 ADMIN_ID = 7081484236
-ADMIN_USERNAME = "@PulTopBot_admin" # O'zingning usernameingni yoz
 CHANNEL = "@PulTopinguzz"
+ADMIN_USERNAME = "@PulTopBot_admin" # O'zingning usernameingni yoz
 
 bot = telebot.TeleBot(TOKEN)
+# users format: {user_id: {"balans": 0, "status": "vip", "xato": 0, "mute_until": 0}}
 users = {} 
 items = ["Dom", "Ko'cha", "Daraxt", "Televizor", "Gultuvak", "Tova", "Muzlatkich", "Chiroq", "Devor", "Gilam"]
 
-# --- YORDAMCHI FUNKSIYALAR ---
-def check_sub(user_id):
-    try:
-        status = bot.get_chat_member(CHANNEL, user_id).status
-        return status in ['member', 'administrator', 'creator']
-    except: return False
-
 def get_menu():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🖼 Rasm orqali", "🆘 Help")
+    markup.add("🖼 Rasm orqali", "👤 Profil", "🏆 Top 10")
+    markup.add("💰 Pul yechish", "🆘 Help")
     return markup
 
-# --- START ---
 @bot.message_handler(commands=['start'])
 def start(message):
-    if not check_sub(message.chat.id):
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("✅ Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL[1:]}"))
-        markup.add(types.InlineKeyboardButton("🔄 Tasdiqlash", callback_data="check_sub"))
-        bot.send_message(message.chat.id, f"⚠️ Botdan foydalanish uchun {CHANNEL} kanaliga obuna bo'ling va tugmani bosing:", reply_markup=markup)
-        return
-    
-    bot.send_message(message.chat.id, "👋 Xush kelibsiz! Botdan foydalanish uchun to'lov qiling:", reply_markup=get_payment_markup())
+    uid = message.chat.id
+    if uid in users and users[uid].get("mute_until", 0) > time.time():
+        return bot.send_message(uid, "🚫 Siz 12 soatlik mute holatidasiz.")
+    bot.send_message(uid, "👋 Xush kelibsiz! Botdan foydalanish uchun kanalga obuna bo'ling va to'lov qiling.", reply_markup=get_menu())
 
-def get_payment_markup():
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("💳 To'lov qilish", callback_data="pay"),
-               types.InlineKeyboardButton("👤 Admin orqali", callback_data="admin_contact"))
-    return markup
+# --- PROFIL VA REYTING ---
+@bot.message_handler(func=lambda message: message.text == "👤 Profil")
+def profile(message):
+    u = users.get(message.chat.id, {"balans": 0})
+    bot.send_message(message.chat.id, f"👤 Profilingiz:\n🆔 ID: {message.chat.id}\n💰 Balans: {u.get('balans', 0)} so'm")
 
-# --- TO'LOV VA ADMIN ---
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def check_sub_callback(call):
-    if check_sub(call.message.chat.id):
-        bot.edit_message_text("✅ Obuna tasdiqlandi!", call.message.chat.id, call.message.message_id)
-        bot.send_message(call.message.chat.id, "Botdan foydalanish uchun 5.000 so'm to'lov qiling:", reply_markup=get_payment_markup())
+@bot.message_handler(func=lambda message: message.text == "🏆 Top 10")
+def top_list(message):
+    sorted_users = sorted(users.items(), key=lambda x: x[1].get('balans', 0), reverse=True)[:10]
+    text = "🏆 Top 10 foydalanuvchi:\n"
+    for i, (uid, data) in enumerate(sorted_users, 1):
+        text += f"{i}. ID: {uid} — {data['balans']} so'm\n"
+    bot.send_message(message.chat.id, text)
+
+# --- PUL YECHISH ---
+@bot.message_handler(func=lambda message: message.text == "💰 Pul yechish")
+def withdraw_money(message):
+    uid = message.chat.id
+    balance = users.get(uid, {}).get("balans", 0)
+    if balance < 10000:
+        bot.send_message(uid, f"❌ Minimum 10.000 so'm kerak. Balansingiz: {balance} so'm")
     else:
-        bot.answer_callback_query(call.id, "❌ Obuna bo'lmadingiz!", show_alert=True)
+        msg = bot.send_message(uid, "💰 Qancha mablag' yechmoqchisiz? (10.000 - 5.000.000 so'm):")
+        bot.register_next_step_handler(msg, process_withdrawal)
 
-@bot.callback_query_handler(func=lambda call: call.data in ["pay", "admin_contact", "send_receipt"])
-def handle_pay(call):
-    if call.data == "pay":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("📤 Chek yuborish", callback_data="send_receipt"))
-        bot.edit_message_text("💳 Karta: 4073420029671058\nEga: Boymurodova N.\nTo'lov qilganingizdan so'ng chekni yuboring.", call.message.chat.id, call.message.message_id, reply_markup=markup)
-    elif call.data == "admin_contact":
-        bot.send_message(call.message.chat.id, f"👤 Admin bilan bog'lanish: {ADMIN_USERNAME}")
-    elif call.data == "send_receipt":
-        msg = bot.send_message(call.message.chat.id, "Iltimos, to'lov chekini rasm ko'rinishida yuboring:")
-        bot.register_next_step_handler(msg, forward_receipt)
+def process_withdrawal(message):
+    try:
+        amount = int(message.text)
+        uid = message.chat.id
+        if 10000 <= amount <= 5000000 and amount <= users[uid]["balans"]:
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("✅ To'lab berish", callback_data=f"pay_out_{uid}_{amount}"),
+                       types.InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{uid}"))
+            bot.send_message(ADMIN_ID, f"📩 Pul yechish so'rovi!\nFoydalanuvchi: {uid}\nMiqdor: {amount} so'm", reply_markup=markup)
+            bot.send_message(uid, "✅ So'rovingiz adminga yuborildi.")
+        else: bot.send_message(uid, "❌ Xato miqdor yoki balans yetarli emas!")
+    except: bot.send_message(uid, "❌ Iltimos, raqam kiriting.")
 
-def forward_receipt(message):
-    if message.photo:
-        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"📥 Yangi to'lov cheki!\nFoydalanuvchi: {message.chat.id}")
-        bot.reply_to(message, "✅ Chekingiz adminga yuborildi.")
-    else: bot.reply_to(message, "❌ Iltimos, faqat rasm yuboring.")
-
-# --- ADMIN PANEL ---
-@bot.message_handler(commands=['addid'])
-def add_id(message):
-    if message.chat.id == ADMIN_ID:
-        try:
-            uid = int(message.text.split()[1])
-            users[uid] = {"balans": 0, "status": "vip"}
-            bot.send_message(uid, "✅ To'lovingiz tasdiqlandi! Endi botdan foydalanishingiz mumkin.", reply_markup=get_menu())
-            bot.reply_to(message, "Foydalanuvchi VIP qilindi.")
-        except: bot.reply_to(message, "Format: /addid user_id")
-
-# --- O'YIN ---
-@bot.message_handler(func=lambda message: message.text == "🖼 Rasm orqali")
-def send_task(message):
-    if message.chat.id not in users or users[message.chat.id].get("status") != "vip":
-        return bot.reply_to(message, "❌ Siz hali VIP emassiz!")
-    item = random.choice(items)
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton("📤 Rasm yuborish", callback_data="upload_photo"))
-    bot.send_message(message.chat.id, f"📸 *{item}* rasmini yuboring!\n⚠️ 3 marta xato qilsangiz 12 soatga bloklanasiz.", parse_mode="Markdown", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data == "upload_photo")
-def ask_photo(call):
-    msg = bot.send_message(call.message.chat.id, "Marhamat rasmingizni yuboring:")
-    bot.register_next_step_handler(msg, verify_photo)
-
-def verify_photo(message):
-    if message.photo:
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"ok_{message.chat.id}"),
-                   types.InlineKeyboardButton("❌ Xato", callback_data=f"no_{message.chat.id}"))
-        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"Foydalanuvchi: {message.chat.id}", reply_markup=markup)
-    else: bot.reply_to(message, "❌ Rasm yuboring!")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith(("ok_", "no_")))
+# --- ADMIN ACTION ---
+@bot.callback_query_handler(func=lambda call: call.data.startswith(("ok_", "no_", "pay_out_", "reject_")))
 def admin_action(call):
-    uid = int(call.data.split("_")[1])
-    if "ok_" in call.data:
+    data = call.data.split("_")
+    action, uid = data[0], int(data[1])
+    
+    if action == "ok":
         users[uid]["balans"] = users[uid].get("balans", 0) + 100
         bot.send_message(uid, f"✅ Rasm tasdiqlandi! Balans: {users[uid]['balans']} so'm")
-    else:
+    elif action == "no":
         users[uid]["balans"] = users[uid].get("balans", 0) - 500
-        bot.send_message(uid, f"❌ Rasm xato! Balans: {users[uid]['balans']} so'm")
+        users[uid]["xato"] = users[uid].get("xato", 0) + 1
+        if users[uid]["xato"] >= 3:
+            users[uid]["mute_until"] = time.time() + (12 * 3600)
+            users[uid]["xato"] = 0
+            bot.send_message(uid, "❌ 3 ta xato! 12 soatga mute oldingiz.")
+        else: bot.send_message(uid, f"❌ Rasm xato! {3 - users[uid]['xato']} ta imkoniyat qoldi.")
+    elif action == "pay_out":
+        amount = int(data[2])
+        users[uid]["balans"] -= amount
+        bot.send_message(uid, f"✅ {amount} so'm to'lab berildi!")
+    elif action == "reject":
+        bot.send_message(uid, "❌ Pul yechish so'rovingiz rad etildi.")
     bot.edit_message_caption("Bajarildi.", call.message.chat.id, call.message.message_id)
 
 bot.infinity_polling()
