@@ -8,10 +8,9 @@ ADMIN_ID = 7081484236
 CHANNEL = "@PulTopinguzz"
 
 bot = telebot.TeleBot(TOKEN)
-users = {} 
+users = {}
 items = ["Dom", "Ko'cha", "Daraxt", "Televizor", "Gultuvak", "Tova", "Muzlatkich", "Chiroq", "Devor", "Gilam"]
 
-# --- YORDAMCHI ---
 def is_subscribed(uid):
     try: return bot.get_chat_member(CHANNEL, uid).status in ['member', 'administrator', 'creator']
     except: return False
@@ -24,14 +23,12 @@ def start(message):
     markup.add("🖼 Rasm orqali", "👤 Profil", "🏆 Top 10", "💰 Pul yechish", "🆘 Help")
     bot.send_message(message.chat.id, "👋 Xush kelibsiz!", reply_markup=markup)
 
-# --- MATNLI HANDLERLAR (Ishlamayotganlar to'g'irlandi) ---
 @bot.message_handler(func=lambda m: m.text in ["👤 Profil", "🏆 Top 10", "🆘 Help"])
 def menu_handler(message):
     uid = message.chat.id
     if uid not in users: users[uid] = {"balans": 0}
-    
     if message.text == "👤 Profil":
-        bot.send_message(uid, f"👤 Profilingiz:\n🆔 ID: {uid}\n💰 Balans: {users[uid].get('balans', 0)} so'm")
+        bot.send_message(uid, f"👤 Profil:\n🆔 ID: {uid}\n💰 Balans: {users[uid].get('balans', 0)} so'm")
     elif message.text == "🆘 Help":
         bot.send_message(uid, "Qoidalar: Rasm yuboring, admin tasdiqlasa pul ishlaysiz.")
     elif message.text == "🏆 Top 10":
@@ -39,7 +36,6 @@ def menu_handler(message):
         text = "🏆 Top 10:\n" + "\n".join([f"{i}. ID: {k} - {v.get('balans', 0)} so'm" for i, (k, v) in enumerate(top, 1)])
         bot.send_message(uid, text)
 
-# --- RASM VA PUL YECHISH ---
 @bot.message_handler(func=lambda m: m.text == "🖼 Rasm orqali")
 def start_photo(message):
     task = random.choice(items)
@@ -65,7 +61,6 @@ def step_amount(message):
         bot.send_message(message.chat.id, f"💰 {amt} so'm. To'g'rimi?", reply_markup=markup)
     except: bot.send_message(message.chat.id, "❌ Faqat raqam yozing!")
 
-# --- CALLBACKLAR (Tugmalar to'g'irlandi) ---
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     uid = call.message.chat.id
@@ -76,19 +71,26 @@ def callback(call):
         amt = call.data.split("_")[1]
         msg = bot.send_message(uid, "💳 Karta raqam:")
         bot.register_next_step_handler(msg, lambda m: finish_with(m, amt))
-    elif call.data.startswith("ok_"): # Admin tasdiqlashi
+    elif call.data.startswith("ok_"):
         u = int(call.data.split("_")[1])
         users[u]["balans"] = users[u].get("balans", 0) + 100
         bot.send_message(u, "✅ Tasdiqlandi! +100 so'm.")
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("📤 Chek yuborish", callback_data=f"sendchk_{u}"))
         bot.edit_message_caption("✅ Tasdiqlandi.", call.message.chat.id, call.message.message_id, reply_markup=markup)
-    elif call.data.startswith("no_"): # Noto'g'ri tugmasi qo'shildi
+    elif call.data.startswith("no_"):
         u = int(call.data.split("_")[1])
         bot.send_message(u, "❌ Rasm noto'g'ri!")
         bot.edit_message_caption("❌ Rad etildi.", call.message.chat.id, call.message.message_id)
     elif call.data.startswith("sendchk_"):
-        msg = bot.send_message(ADMIN_ID, "📸 Chek yuboring:")
-        bot.register_next_step_handler(msg, lambda m: bot.send_photo(int(call.data.split("_")[1]), m.photo[-1].file_id, caption="✅ To'lov cheki!"))
+        target_uid = call.data.split("_")[1]
+        msg = bot.send_message(ADMIN_ID, f"📸 {target_uid} uchun chek yuboring:")
+        bot.register_next_step_handler(msg, lambda m: send_check_process(m, target_uid))
+
+def send_check_process(message, target_uid):
+    if message.photo:
+        bot.send_photo(target_uid, message.photo[-1].file_id, caption="✅ To'lov cheki!")
+        bot.send_message(ADMIN_ID, "✅ Chek yuborildi.")
+    else: bot.send_message(ADMIN_ID, "❌ Rasm yuboring!")
 
 def step_photo(message):
     if message.photo:
