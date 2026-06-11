@@ -8,7 +8,7 @@ ADMIN_ID = 7081484236
 CHANNEL = "@PulTopinguzz"
 
 bot = telebot.TeleBot(TOKEN)
-users = {}
+users = {} 
 items = ["Dom", "Ko'cha", "Daraxt", "Televizor", "Gultuvak", "Tova", "Muzlatkich", "Chiroq", "Devor", "Gilam"]
 
 # --- YORDAMCHI ---
@@ -16,7 +16,6 @@ def is_subscribed(uid):
     try: return bot.get_chat_member(CHANNEL, uid).status in ['member', 'administrator', 'creator']
     except: return False
 
-# --- ASOSIY ---
 @bot.message_handler(commands=['start'])
 def start(message):
     if not is_subscribed(message.chat.id):
@@ -25,11 +24,34 @@ def start(message):
     markup.add("🖼 Rasm orqali", "👤 Profil", "🏆 Top 10", "💰 Pul yechish", "🆘 Help")
     bot.send_message(message.chat.id, "👋 Xush kelibsiz!", reply_markup=markup)
 
-# --- PUL YECHISH TIZIMI ---
+# --- MATNLI HANDLERLAR (Ishlamayotganlar to'g'irlandi) ---
+@bot.message_handler(func=lambda m: m.text in ["👤 Profil", "🏆 Top 10", "🆘 Help"])
+def menu_handler(message):
+    uid = message.chat.id
+    if uid not in users: users[uid] = {"balans": 0}
+    
+    if message.text == "👤 Profil":
+        bot.send_message(uid, f"👤 Profilingiz:\n🆔 ID: {uid}\n💰 Balans: {users[uid].get('balans', 0)} so'm")
+    elif message.text == "🆘 Help":
+        bot.send_message(uid, "Qoidalar: Rasm yuboring, admin tasdiqlasa pul ishlaysiz.")
+    elif message.text == "🏆 Top 10":
+        top = sorted(users.items(), key=lambda x: x[1].get('balans', 0), reverse=True)[:10]
+        text = "🏆 Top 10:\n" + "\n".join([f"{i}. ID: {k} - {v.get('balans', 0)} so'm" for i, (k, v) in enumerate(top, 1)])
+        bot.send_message(uid, text)
+
+# --- RASM VA PUL YECHISH ---
+@bot.message_handler(func=lambda m: m.text == "🖼 Rasm orqali")
+def start_photo(message):
+    task = random.choice(items)
+    users[message.chat.id] = users.get(message.chat.id, {"balans": 0, "last_task": task})
+    users[message.chat.id]["last_task"] = task
+    markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("📤 Rasm yuborish", callback_data="btn_up"))
+    bot.send_message(message.chat.id, f"📸 {task} rasmini yuboring!", reply_markup=markup)
+
 @bot.message_handler(func=lambda m: m.text == "💰 Pul yechish")
 def start_withdrawal(message):
-    if users.get(message.chat.id, {}).get("balans", 0) < 10000:
-        bot.send_message(message.chat.id, "❌ Minimum 10.000 so'm!")
+    bal = users.get(message.chat.id, {}).get("balans", 0)
+    if bal < 10000: bot.send_message(message.chat.id, "❌ Minimum 10.000 so'm!")
     else:
         msg = bot.send_message(message.chat.id, "💰 Qancha yechmoqchisiz?")
         bot.register_next_step_handler(msg, step_amount)
@@ -37,23 +59,13 @@ def start_withdrawal(message):
 def step_amount(message):
     try:
         amt = int(message.text)
-        if amt > users[message.chat.id]["balans"]: raise Exception
         markup = types.InlineKeyboardMarkup().add(
             types.InlineKeyboardButton("✅ To'g'ri", callback_data=f"okamt_{amt}"),
             types.InlineKeyboardButton("🔙 Ortga", callback_data="cancel"))
         bot.send_message(message.chat.id, f"💰 {amt} so'm. To'g'rimi?", reply_markup=markup)
-    except: bot.send_message(message.chat.id, "❌ Noto'g'ri qiymat!")
+    except: bot.send_message(message.chat.id, "❌ Faqat raqam yozing!")
 
-# --- RASM TIZIMI ---
-@bot.message_handler(func=lambda m: m.text == "🖼 Rasm orqali")
-def start_photo(message):
-    task = random.choice(items)
-    users[message.chat.id] = users.get(message.chat.id, {"balans":0, "last_task":""})
-    users[message.chat.id]["last_task"] = task
-    markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("📤 Rasm yuborish", callback_data="btn_up"))
-    bot.send_message(message.chat.id, f"📸 {task} rasmini yuboring!", reply_markup=markup)
-
-# --- CALLBACK TIZIMI ---
+# --- CALLBACKLAR (Tugmalar to'g'irlandi) ---
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     uid = call.message.chat.id
@@ -62,34 +74,39 @@ def callback(call):
         bot.register_next_step_handler(msg, step_photo)
     elif call.data.startswith("okamt_"):
         amt = call.data.split("_")[1]
-        msg = bot.send_message(uid, "💳 Karta raqamingizni yozing:")
+        msg = bot.send_message(uid, "💳 Karta raqam:")
         bot.register_next_step_handler(msg, lambda m: finish_with(m, amt))
-    elif call.data.startswith("ok_"):
+    elif call.data.startswith("ok_"): # Admin tasdiqlashi
         u = int(call.data.split("_")[1])
         users[u]["balans"] = users[u].get("balans", 0) + 100
         bot.send_message(u, "✅ Tasdiqlandi! +100 so'm.")
-        bot.edit_message_caption("✅ Tasdiqlandi.", uid, call.message.message_id)
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("📤 Chek yuborish", callback_data=f"sendchk_{u}"))
+        bot.edit_message_caption("✅ Tasdiqlandi.", call.message.chat.id, call.message.message_id, reply_markup=markup)
+    elif call.data.startswith("no_"): # Noto'g'ri tugmasi qo'shildi
+        u = int(call.data.split("_")[1])
+        bot.send_message(u, "❌ Rasm noto'g'ri!")
+        bot.edit_message_caption("❌ Rad etildi.", call.message.chat.id, call.message.message_id)
+    elif call.data.startswith("sendchk_"):
+        msg = bot.send_message(ADMIN_ID, "📸 Chek yuboring:")
+        bot.register_next_step_handler(msg, lambda m: bot.send_photo(int(call.data.split("_")[1]), m.photo[-1].file_id, caption="✅ To'lov cheki!"))
 
 def step_photo(message):
     if message.photo:
-        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"👤 {message.chat.id}\nTopshiriq: {users[message.chat.id]['last_task']}", 
-                       reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("✅", callback_data=f"ok_{message.chat.id}")))
-        bot.send_message(message.chat.id, "✅ Admin tekshirmoqda...")
+        bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=f"👤 {message.chat.id}\nTopshiriq: {users[message.chat.id].get('last_task')}", 
+                       reply_markup=types.InlineKeyboardMarkup().add(
+                           types.InlineKeyboardButton("✅", callback_data=f"ok_{message.chat.id}"), 
+                           types.InlineKeyboardButton("❌", callback_data=f"no_{message.chat.id}")))
     else: bot.send_message(message.chat.id, "❌ Rasm yuboring!")
 
 def finish_with(message, amt):
-    bot.send_message(message.chat.id, "⏳ Kuting... Admin ko'rib chiqmoqda.")
-    bot.send_message(ADMIN_ID, f"📩 So'rov: {message.chat.id}\n💰 {amt}\n💳 {message.text}")
+    bot.send_message(ADMIN_ID, f"📩 So'rov: {message.chat.id}\n💰 {amt}\n💳 {message.text}", 
+                     reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("✅ Tasdiqlash", callback_data=f"ok_{message.chat.id}")))
+    bot.send_message(message.chat.id, "⏳ Kuting...")
 
-# --- QOLGANLAR ---
 @bot.message_handler(commands=['pay'])
 def pay(m):
     if m.chat.id == ADMIN_ID:
-        try:
-            _, uid, amt = m.text.split()
-            users[int(uid)] = users.get(int(uid), {"balans":0})
-            users[int(uid)]["balans"] += int(amt)
-            bot.send_message(uid, f"✅ +{amt} so'm qo'shildi!")
-        except: bot.reply_to(m, "Format: /pay <id> <amt>")
+        try: _, uid, amt = m.text.split(); users[int(uid)]["balans"] += int(amt); bot.send_message(uid, f"✅ +{amt}")
+        except: bot.reply_to(m, "/pay id amt")
 
 bot.infinity_polling()
