@@ -19,10 +19,11 @@ def init_db():
     cursor.execute("CREATE TABLE IF NOT EXISTS movies (movie_code TEXT PRIMARY KEY, file_id TEXT, caption TEXT)")
     
     # 172-KODLI KINO YANGI TO'LIQ FILE_ID BILAN (REPLACE FORMATIDA)
-    kino_172_file_id = "BAACAgIAAxkBAANTajwCt7jaShxvUXILSZJGe4NfW1gAAjmrAAIU3uFJkdVCqGMQeBM8BA"
+    kino_172_file_id = "BAACAgIAAxkBAANtajwGs2SBstzAalxyTGhlIQjhYj8AArd7AALrlyFJY596TlbJP_A8BA"
     kino_172_caption = (
-        "🎥 Kino nomi: #RokerEditz\n"
+        "🎥 Kino nomi: #ArvohPoygachi\n"
         "📀 Sifati: 1080p\n\n"
+        "🎞 Keyingi qism kodi: 173\n\n"
         "🍿 @GizaKino_bot — Maxsus siz uchun!"
     )
     
