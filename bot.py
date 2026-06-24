@@ -18,16 +18,17 @@ def init_db():
     cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, vip_until TEXT)")
     cursor.execute("CREATE TABLE IF NOT EXISTS movies (movie_code TEXT PRIMARY KEY, file_id TEXT, caption TEXT)")
     
-    # 172-KODLI KINONI BAZAGA TAYYOR QILIB QO'SHISH (FILE_ID O'ZINGIZ UCHUN JOI)
-    # "BU_YERGA_O_ZINGIZ_FILE_ID_QO_SHASIZ" yozuvi o'rniga o'sha kinoning file_id sini qo'ying!
+    # 172-KODLI KINO YANGI TO'LIQ FILE_ID BILAN (REPLACE FORMATIDA)
     kino_172_file_id = "BAACAgIAAxkBAANTajwCt7jaShxvUXILSZJGe4NfW1gAAjmrAAIU3uFJkdVCqGMQeBM8BA"
     kino_172_caption = (
         "🎥 Kino nomi: #RokerEditz\n"
         "📀 Sifati: 1080p\n\n"
         "🍿 @GizaKino_bot — Maxsus siz uchun!"
     )
+    
+    # Bu yerda OR REPLACE qildik, endi bot yangi file_id ni majburing yangilaydi
     cursor.execute(
-        "INSERT OR IGNORE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)",
+        "INSERT OR REPLACE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)",
         ("172", kino_172_file_id, kino_172_caption)
     )
     
