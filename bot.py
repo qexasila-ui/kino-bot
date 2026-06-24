@@ -3,7 +3,7 @@ from telebot import types
 import sqlite3
 from datetime import datetime, timedelta
 
-# Tokenni o'zgartirmasdan qoldirdim
+# Token va Ma'lumotlar (ID raqamingiz to'g'riligini tekshiring)
 TOKEN = "8274373991:AAE5lGfeJOSlaO8fIF8b7mtlP54dKVF3svc"  
 ADMIN_ID = 7081484236
 CHANNEL = "@GizaKino"  
@@ -11,6 +11,7 @@ CARD_NUMBER = "4073 4200 2967 1058"
 
 bot = telebot.TeleBot(TOKEN)
 
+# --- BAZA ISHLARI ---
 def init_db():
     conn = sqlite3.connect("kino_bot.db")
     cursor = conn.cursor()
@@ -62,6 +63,7 @@ def main_menu():
     markup.row(types.KeyboardButton("💎 Premium"), types.KeyboardButton("🔍 Kino qidirish"))
     return markup
 
+# --- START BUYRUG'I ---
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
     user_id = message.from_user.id
@@ -81,6 +83,7 @@ def check_sub_callback(call):
     else:
         bot.answer_callback_query(call.id, "Siz hali kanalga obuna bo'lmagansiz!", show_alert=True)
 
+# --- PREMIUM BO'LIMI ---
 @bot.message_handler(func=lambda message: message.text == "💎 Premium")
 def premium_sec(message):
     markup = types.InlineKeyboardMarkup()
@@ -101,29 +104,38 @@ def inline_navigation(call):
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
         
     elif call.data == "send_check":
-        msg = bot.send_message(call.message.chat.id, "Marhamat, chekni rasm ko'rinishida yuboring...")
-        bot.register_next_step_handler(msg, receive_check)
+        msg = bot.send_message(call.message.chat.id, "Marhamat, chekni yuboring (Rasm, fayl yoki matn ko'rinishida)...")
+        bot.register_next_step_handler(msg, receive_all_checks)
 
-def receive_check(message):
-    if not message.photo:
-        msg = bot.send_message(message.chat.id, "Iltimos, chekni faqat rasm shaklida yuboring!")
-        bot.register_next_step_handler(msg, receive_check)
-        return
-    
-    photo_id = message.photo[-1].file_id
+# --- HAR QANDAY CHEKNI QABUL QILISH (YANGILANDI) ---
+def receive_all_checks(message):
     user_id = message.from_user.id
     username = f"@{message.from_user.username}" if message.from_user.username else "Mavjud emas"
     
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{user_id}"))
     
-    bot.send_photo(
-        ADMIN_ID, photo_id,
-        caption=f"🔔 Yangi to'lov cheki!\n👤 Foydalanuvchi: {message.from_user.full_name}\n🆔 ID: `{user_id}`\nUsername: {username}\n\nTasdiqlash: `/addvip {user_id}`",
-        parse_mode="Markdown", reply_markup=markup
-    )
-    bot.send_message(message.chat.id, "Kuting admin ko'rib chiqmoqda...")
+    caption_text = f"🔔 Yangi to'lov cheki!\n👤 Foydalanuvchi: {message.from_user.full_name}\n🆔 ID: `{user_id}`\nUsername: {username}\n\nTasdiqlash uchun: `/addvip {user_id}`"
+    
+    try:
+        # Agar rasm bo'lsa
+        if message.photo:
+            photo_id = message.photo[-1].file_id
+            bot.send_photo(ADMIN_ID, photo_id, caption=caption_text, parse_mode="Markdown", reply_markup=markup)
+        # Agar fayl/hujjat bo'lsa
+        elif message.document:
+            doc_id = message.document.file_id
+            bot.send_document(ADMIN_ID, doc_id, caption=caption_text, parse_mode="Markdown", reply_markup=markup)
+        # Agar shunchaki tekst yuborgan bo'lsa
+        else:
+            bot.send_message(ADMIN_ID, f"{caption_text}\n\n📝 Xabar matni: {message.text}", parse_mode="Markdown", reply_markup=markup)
+            
+        bot.send_message(message.chat.id, "Kuting admin ko'rib chiqmoqda...")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Xatolik yuz berdi, qayta urinib ko'ring yoki adminga yozing.")
+        bot.send_message(ADMIN_ID, f"Botda xabar yuborishda xato: {e}")
 
+# --- ADMIN RAD ETGANDA ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reject_"))
 def reject_payment(call):
     target_user_id = int(call.data.split("_")[1])
@@ -133,6 +145,7 @@ def reject_payment(call):
     except Exception as e:
         bot.reply_to(call.message, f"Xatolik: {e}")
 
+# --- ADMIN /ADDVIP BUYRUG'I ---
 @bot.message_handler(commands=['addvip'])
 def cmd_addvip(message):
     if message.from_user.id != ADMIN_ID:
@@ -151,6 +164,7 @@ def cmd_addvip(message):
     except Exception as e:
         bot.reply_to(message, f"Xatolik: {e}")
 
+# --- ADMIN VIDEO QABUL QILISH ---
 @bot.message_handler(content_types=['video'])
 def admin_get_video(message):
     if message.from_user.id != ADMIN_ID:
@@ -170,6 +184,7 @@ def admin_save_movie(message, video_id):
     conn.close()
     bot.reply_to(message, f"✅ Kino bazaga qo'shildi!\n🔑 Kodi: `{movie_code}`")
 
+# --- KINO QIDIRISH ---
 @bot.message_handler(func=lambda message: message.text == "🔍 Kino qidirish")
 def search_movie_start(message):
     user_id = message.from_user.id
