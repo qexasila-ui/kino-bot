@@ -3,7 +3,7 @@ from telebot import types
 import sqlite3
 from datetime import datetime, timedelta
 
-# Token va Ma'lumotlar (ID raqamingiz to'g'riligini tekshiring)
+# BOT MA'LUMOTLARI
 TOKEN = "8274373991:AAE5lGfeJOSlaO8fIF8b7mtlP54dKVF3svc"  
 ADMIN_ID = 7081484236
 CHANNEL = "@GizaKino"  
@@ -16,7 +16,21 @@ def init_db():
     conn = sqlite3.connect("kino_bot.db")
     cursor = conn.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, vip_until TEXT)")
-    cursor.execute("CREATE TABLE IF NOT EXISTS movies (movie_code TEXT PRIMARY KEY, file_id TEXT)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS movies (movie_code TEXT PRIMARY KEY, file_id TEXT, caption TEXT)")
+    
+    # 172-KODLI KINONI BAZAGA TAYYOR QILIB QO'SHISH (FILE_ID O'ZINGIZ UCHUN JOI)
+    # "BU_YERGA_O_ZINGIZ_FILE_ID_QO_SHASIZ" yozuvi o'rniga o'sha kinoning file_id sini qo'ying!
+    kino_172_file_id = "BU_YERGA_O_ZINGIZ_FILE_ID_QO_SHASIZ"
+    kino_172_caption = (
+        "🎥 Kino nomi: #Jangchilar\n"
+        "📀 Sifati: 1080p\n\n"
+        "🍿 @GizaKino_bot — Maxsus siz uchun!"
+    )
+    cursor.execute(
+        "INSERT OR IGNORE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)",
+        ("172", kino_172_file_id, kino_172_caption)
+    )
+    
     conn.commit()
     conn.close()
 
@@ -107,33 +121,41 @@ def inline_navigation(call):
         msg = bot.send_message(call.message.chat.id, "Marhamat, chekni yuboring (Rasm, fayl yoki matn ko'rinishida)...")
         bot.register_next_step_handler(msg, receive_all_checks)
 
-# --- HAR QANDAY CHEKNI QABUL QILISH (YANGILANDI) ---
+# --- HAR QANDAY CHEKNI QABUL QILISH ---
 def receive_all_checks(message):
     user_id = message.from_user.id
+    full_name = message.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     username = f"@{message.from_user.username}" if message.from_user.username else "Mavjud emas"
     
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{user_id}"))
     
-    caption_text = f"🔔 Yangi to'lov cheki!\n👤 Foydalanuvchi: {message.from_user.full_name}\n🆔 ID: `{user_id}`\nUsername: {username}\n\nTasdiqlash uchun: `/addvip {user_id}`"
+    caption_text = (
+        f"<b>🔔 Yangi to'lov cheki!</b>\n"
+        f"👤 Foydalanuvchi: {full_name}\n"
+        f"🆔 ID: <code>{user_id}</code>\n"
+        f"Username: {username}\n\n"
+        f"Tasdiqlash uchun buyruq:\n<code>/addvip {user_id}</code>"
+    )
     
     try:
-        # Agar rasm bo'lsa
         if message.photo:
             photo_id = message.photo[-1].file_id
-            bot.send_photo(ADMIN_ID, photo_id, caption=caption_text, parse_mode="Markdown", reply_markup=markup)
-        # Agar fayl/hujjat bo'lsa
+            bot.send_photo(ADMIN_ID, photo_id, caption=caption_text, parse_mode="HTML", reply_markup=markup)
         elif message.document:
             doc_id = message.document.file_id
-            bot.send_document(ADMIN_ID, doc_id, caption=caption_text, parse_mode="Markdown", reply_markup=markup)
-        # Agar shunchaki tekst yuborgan bo'lsa
+            bot.send_document(ADMIN_ID, doc_id, caption=caption_text, parse_mode="HTML", reply_markup=markup)
         else:
-            bot.send_message(ADMIN_ID, f"{caption_text}\n\n📝 Xabar matni: {message.text}", parse_mode="Markdown", reply_markup=markup)
+            safe_text = message.text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") if message.text else ""
+            bot.send_message(ADMIN_ID, f"{caption_text}\n\n📝 Xabar matni: {safe_text}", parse_mode="HTML", reply_markup=markup)
             
         bot.send_message(message.chat.id, "Kuting admin ko'rib chiqmoqda...")
     except Exception as e:
         bot.send_message(message.chat.id, f"Xatolik yuz berdi, qayta urinib ko'ring yoki adminga yozing.")
-        bot.send_message(ADMIN_ID, f"Botda xabar yuborishda xato: {e}")
+        try:
+            bot.send_message(ADMIN_ID, f"🔔 Yangi chek (Zaxira xabar)!\nID: {user_id}\n\nBuyruq: /addvip {user_id}")
+        except Exception:
+            pass
 
 # --- ADMIN RAD ETGANDA ---
 @bot.callback_query_handler(func=lambda call: call.data.startswith("reject_"))
@@ -170,19 +192,53 @@ def admin_get_video(message):
     if message.from_user.id != ADMIN_ID:
         return
     video_id = message.video.file_id
-    msg = bot.reply_to(message, f"🎬 Video ID-si olindi!\n\nEndi ushbu kino uchun **kod** kiriting:")
+    
+    text = (
+        f"🎬 <b>Video muvaffaqiyatli qabul qilindi!</b>\n\n"
+        f"📌 Bu videoning <code>file_id</code> kodi:\n"
+        f"<code>{video_id}</code>\n\n"
+        f"👆 <i>Ustiga bossangiz, avtomatik nusxalanadi.</i>\n\n"
+        f"Endi ushbu kino uchun <b>KOD va NOMI</b>ni mana bu namunada kiriting:\n"
+        f"<code>KOD | KINO_NOMI</code>\n\n"
+        f"<i>Masalan: 125 | Jangchilar</i>"
+    )
+    
+    msg = bot.reply_to(message, text, parse_mode="HTML")
     bot.register_next_step_handler(msg, admin_save_movie, video_id)
 
 def admin_save_movie(message, video_id):
     if message.from_user.id != ADMIN_ID:
         return
-    movie_code = message.text.strip()
-    conn = sqlite3.connect("kino_bot.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO movies (movie_code, file_id) VALUES (?, ?)", (movie_code, video_id))
-    conn.commit()
-    conn.close()
-    bot.reply_to(message, f"✅ Kino bazaga qo'shildi!\n🔑 Kodi: `{movie_code}`")
+    try:
+        # Kod va Nomni ajratib olish (Format: KOD | NOMI)
+        data = message.text.strip()
+        if "|" in data:
+            movie_code, movie_name = data.split("|", 1)
+            movie_code = movie_code.strip()
+            movie_name = movie_name.strip()
+        else:
+            movie_code = data
+            movie_name = "#Noma'lum"
+
+        # Kreativ formatda matn tayyorlash
+        kreativ_caption = (
+            f"🎥 Kino nomi: #{movie_name.replace(' ', '').replace('#', '')}\n"
+            f"📀 Sifati: 1080p\n\n"
+            f"🍿 @GizaKino_bot — Maxsus siz uchun!"
+        )
+
+        conn = sqlite3.connect("kino_bot.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)", 
+            (movie_code, video_id, kreativ_caption)
+        )
+        conn.commit()
+        conn.close()
+        
+        bot.reply_to(message, f"✅ Kino bazaga qo'shildi!\n🔑 Kodi: <code>{movie_code}</code>\n\n📝 Matni:\n{kreativ_caption}", parse_mode="HTML")
+    except Exception as e:
+        bot.reply_to(message, f"Saqlashda xatolik: {e}")
 
 # --- KINO QIDIRISH ---
 @bot.message_handler(func=lambda message: message.text == "🔍 Kino qidirish")
@@ -192,7 +248,7 @@ def search_movie_start(message):
         bot.send_message(message.chat.id, f"Avval kanalga obuna bo'ling {CHANNEL}")
         return
     if not is_vip(user_id):
-        bot.send_message(message.chat.id, "⚠️ Kinolarni ko'rish uchun sizda Premium status bo'lishi kerak. Iltimos, '💎 Premium' bo'limidan faollashtiring.")
+        bot.send_message(message.chat.id, "⚠️ Kinolarni ko'rish uchun sizda Premium status bo'lek. Iltimos, '💎 Premium' bo'limidan faollashtiring.")
         return
     msg = bot.send_message(message.chat.id, "Marhamat, kino kodini yuboring:")
     bot.register_next_step_handler(msg, send_movie_by_code)
@@ -201,12 +257,17 @@ def send_movie_by_code(message):
     movie_code = message.text.strip()
     conn = sqlite3.connect("kino_bot.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT file_id FROM movies WHERE movie_code = ?", (movie_code,))
+    cursor.execute("SELECT file_id, caption FROM movies WHERE movie_code = ?", (movie_code,))
     res = cursor.fetchone()
     conn.close()
     
     if res:
-        bot.send_video(message.chat.id, res[0], caption=f"🎬 Kod: {movie_code}\n\n{CHANNEL} kanali uchun maxsus!")
+        file_id, caption = res[0], res[1]
+        # Agar eski bazadan qolgan kinolarda tekst bo'lmasa, standart tekst qo'yadi
+        if not caption:
+            caption = f"🎬 Kod: {movie_code}\n\n🍿 @GizaKino_bot — Maxsus siz uchun!"
+            
+        bot.send_video(message.chat.id, file_id, caption=caption, parse_mode="HTML")
     else:
         bot.send_message(message.chat.id, "❌ Afsuski, bunday kodli kino topilmadi.")
 
