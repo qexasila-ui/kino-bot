@@ -20,9 +20,9 @@ def init_db():
     
     # 172-KODLI KINONI BAZAGA TAYYOR QILIB QO'SHISH (FILE_ID O'ZINGIZ UCHUN JOI)
     # "BU_YERGA_O_ZINGIZ_FILE_ID_QO_SHASIZ" yozuvi o'rniga o'sha kinoning file_id sini qo'ying!
-    kino_172_file_id = "BU_YERGA_O_ZINGIZ_FILE_ID_QO_SHASIZ"
+    kino_172_file_id = "BAACAgIAAxkBAANTajwCt7jaShxvUXILSZJGe4NfW1gAAjmrAAIU3uFJkdVCqGMQeBM8BA"
     kino_172_caption = (
-        "🎥 Kino nomi: #Jangchilar\n"
+        "🎥 Kino nomi: #RokerEditz\n"
         "📀 Sifati: 1080p\n\n"
         "🍿 @GizaKino_bot — Maxsus siz uchun!"
     )
@@ -218,7 +218,7 @@ def admin_save_movie(message, video_id):
             movie_name = movie_name.strip()
         else:
             movie_code = data
-            movie_name = "#Noma'lum"
+            movie_name = "#Edited By Roker"
 
         # Kreativ formatda matn tayyorlash
         kreativ_caption = (
