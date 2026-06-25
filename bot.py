@@ -79,23 +79,27 @@ def main_menu():
     markup.row(types.KeyboardButton("💎 Premium"), types.KeyboardButton("🔍 Kino qidirish"))
     return markup
 
-# --- START BUYRUG'I ---
+# --- START BUYRUG'I (TO'G'RILANGAN VERSUYA) ---
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
     user_id = message.from_user.id
+    # Ismdagi maxsus belgilarni xavfsiz holatga keltiramiz
+    safe_name = message.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    
     if not check_subscription(user_id):
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("Obuna bo'lish 🚀", url=f"https://t.me/{CHANNEL.replace('@','')}"))
         markup.add(types.InlineKeyboardButton("Tekshirish ✅", callback_data="check_sub"))
         bot.send_message(message.chat.id, f"Botdan foydalanish uchun avval {CHANNEL} kanaliga obuna bo'ling!", reply_markup=markup)
     else:
-        bot.send_message(message.chat.id, f"Xush kelibsiz, {message.from_user.full_name}!", reply_markup=main_menu())
+        bot.send_message(message.chat.id, f"Xush kelibsiz, {safe_name}!", reply_markup=main_menu())
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def check_sub_callback(call):
+    safe_name = call.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     if check_subscription(call.from_user.id):
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.send_message(call.message.chat.id, f"Obuna tasdiqlandi! Marhamat, {call.from_user.full_name}.", reply_markup=main_menu())
+        bot.send_message(call.message.chat.id, f"Obuna tasdiqlandi! Marhamat, {safe_name}.", reply_markup=main_menu())
     else:
         bot.answer_callback_query(call.id, "Siz hali kanalga obuna bo'lmagansiz!", show_alert=True)
 
