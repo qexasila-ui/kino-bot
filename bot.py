@@ -2,6 +2,7 @@ import telebot
 from telebot import types
 import sqlite3
 from datetime import datetime, timedelta
+from flask import Flask, request
 
 # BOT MA'LUMOTLARI
 TOKEN = "8274373991:AAE5lGfeJOSlaO8fIF8b7mtlP54dKVF3svc"  
@@ -9,7 +10,11 @@ ADMIN_ID = 7081484236
 CHANNEL = "@GizaKino"  
 CARD_NUMBER = "4073 4200 2967 1058"
 
+# Loyihangizning Render'dagi havolasi (O'zingizniki bilan solishtiring, odatda mana shunday bo'ladi)
+RENDER_URL = "https://kino-bot.onrender.com" 
+
 bot = telebot.TeleBot(TOKEN)
+app = Flask(__name__)
 
 # --- BAZA ISHLARI ---
 def init_db():
@@ -18,7 +23,6 @@ def init_db():
     cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, vip_until TEXT)")
     cursor.execute("CREATE TABLE IF NOT EXISTS movies (movie_code TEXT PRIMARY KEY, file_id TEXT, caption TEXT)")
     
-    # 172-KODLI KINO
     kino_172_file_id = "BAACAgIAAxkBAANTajwCt7jaShxvUXILSZJGe4NfW1gAAjmrAAIU3uFJkdVCqGMQeBM8BA"
     kino_172_caption = (
         "🎥 Kino nomi: #RokerEditz\n"
@@ -89,7 +93,7 @@ def start_cmd(message):
     else:
         bot.send_message(message.chat.id, f"Xush kelibsiz, {safe_name}!", reply_markup=main_menu())
 
-# --- INLINE TUGMALARNI QABUL QILISH (POLING REJIMI UCHUN TO'LIQ TO'G'RILANDI) ---
+# --- INLINE TUGMALAR ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     try:
@@ -124,10 +128,6 @@ def handle_all_callbacks(call):
         bot.answer_callback_query(call.id)
     except Exception as e:
         print(f"Callback xato: {e}")
-        try:
-            bot.answer_callback_query(call.id, "Xatolik yuz berdi.", show_alert=True)
-        except:
-            pass
 
 # --- PREMIUM BO'LIMI ---
 @bot.message_handler(func=lambda message: message.text == "💎 Premium")
@@ -166,26 +166,7 @@ def receive_all_checks(message):
             
         bot.send_message(message.chat.id, "Kuting admin ko'rib chiqmoqda...")
     except Exception as e:
-        bot.send_message(message.chat.id, f"Xatolik yuz berdi, qayta urinib ko'ring.")
-
-# --- ADMIN /ADDVIP BUYRUG'I ---
-@bot.message_handler(commands=['addvip'])
-def cmd_addvip(message):
-    if message.from_user.id != ADMIN_ID:
-        return
-    try:
-        args = message.text.split()
-        if len(args) < 2:
-            bot.reply_to(message, "Namuna: `/addvip ID`")
-            return
-        target_id = int(args[1])
-        add_vip_days(target_id, 30)
-        bot.reply_to(message, f"✅ {target_id} foydalanuvchiga 1 oy VIP berildi.")
-        
-        user_info = bot.get_chat(target_id)
-        bot.send_message(target_id, f"🎉 To'lovingiz tasdiqlandi!\nMarhamat {user_info.first_name} kino kodini yuboring (Pastdagi 'Kino qidirish' tugmasini bosing).")
-    except Exception as e:
-        bot.reply_to(message, f"Xatolik: {e}")
+        bot.send_message(message.chat.id, "Xatolik yuz berdi, qayta urinib ko'ring.")
 
 # --- ADMIN VIDEO QABUL QILISH ---
 @bot.message_handler(content_types=['video'])
@@ -193,17 +174,7 @@ def admin_get_video(message):
     if message.from_user.id != ADMIN_ID:
         return
     video_id = message.video.file_id
-    
-    text = (
-        f"🎬 <b>Video muvaffaqiyatli qabul qilindi!</b>\n\n"
-        f"📌 Bu videoning <code>file_id</code> kodi:\n"
-        f"<code>{video_id}</code>\n\n"
-        f"👆 <i>Ustiga bossangiz, avtomatik nusxalanadi.</i>\n\n"
-        f"Endi ushbu kino uchun <b>KOD va NOMI</b>ni mana bu namunada kiriting:\n"
-        f"<code>KOD | KINO_NOMI</code>\n\n"
-        f"<i>Masalan: 125 | Jangchilar</i>"
-    )
-    
+    text = f"🎬 <b>Video qabul qilindi!</b>\n\n📌 <code>{video_id}</code>\n\nNamunadagidek kiriting:\n<code>KOD | KINO_NOMI</code>"
     msg = bot.reply_to(message, text, parse_mode="HTML")
     bot.register_next_step_handler(msg, admin_save_movie, video_id)
 
@@ -214,30 +185,19 @@ def admin_save_movie(message, video_id):
         data = message.text.strip()
         if "|" in data:
             movie_code, movie_name = data.split("|", 1)
-            movie_code = movie_code.strip()
-            movie_name = movie_name.strip()
+            movie_code, movie_name = movie_code.strip(), movie_name.strip()
         else:
-            movie_code = data
-            movie_name = "#Noma'lum"
+            movie_code, movie_name = data, "#Noma'lum"
 
-        kreativ_caption = (
-            f"🎥 Kino nomi: #{movie_name.replace(' ', '').replace('#', '')}\n"
-            f"📀 Sifati: 1080p\n\n"
-            f"🍿 @GizaKino_bot — Maxsus siz uchun!"
-        )
-
+        kreativ_caption = f"🎥 Kino nomi: #{movie_name.replace(' ', '')}\n📀 Sifati: 1080p\n\n🍿 @GizaKino_bot — Maxsus siz uchun!"
         conn = sqlite3.connect("kino_bot.db")
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)", 
-            (movie_code, video_id, kreativ_caption)
-        )
+        cursor.execute("INSERT OR REPLACE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)", (movie_code, video_id, kreativ_caption))
         conn.commit()
         conn.close()
-        
-        bot.reply_to(message, f"✅ Kino bazaga qo'shildi!\n🔑 Kodi: <code>{movie_code}</code>", parse_mode="HTML")
+        bot.reply_to(message, f"✅ Kino saqlandi! Kodi: {movie_code}")
     except Exception as e:
-        bot.reply_to(message, f"Saqlashda xatolik: {e}")
+        bot.reply_to(message, f"Xato: {e}")
 
 # --- KINO QIDIRISH ---
 @bot.message_handler(func=lambda message: message.text == "🔍 Kino qidirish")
@@ -247,7 +207,7 @@ def search_movie_start(message):
         bot.send_message(message.chat.id, f"Avval kanalga obuna bo'ling {CHANNEL}")
         return
     if not is_vip(user_id):
-        bot.send_message(message.chat.id, "⚠️ Kinolarni ko'rish uchun sizda Premium status bo'lishi kerak. Iltimos, '💎 Premium' bo'limidan faollashtiring.")
+        bot.send_message(message.chat.id, "⚠️ Kinolarni ko'rish uchun sizda Premium status bo'lek. Iltimos, '💎 Premium' bo'limidan faollashtiring.")
         return
     msg = bot.send_message(message.chat.id, "Marhamat, kino kodini yuboring:")
     bot.register_next_step_handler(msg, send_movie_by_code)
@@ -259,18 +219,26 @@ def send_movie_by_code(message):
     cursor.execute("SELECT file_id, caption FROM movies WHERE movie_code = ?", (movie_code,))
     res = cursor.fetchone()
     conn.close()
-    
     if res:
-        file_id, caption = res[0], res[1]
-        if not caption:
-            caption = f"🎬 Kod: {movie_code}\n\n🍿 @GizaKino_bot — Maxsus siz uchun!"
-        bot.send_video(message.chat.id, file_id, caption=caption, parse_mode="HTML")
+        bot.send_video(message.chat.id, res[0], caption=res[1], parse_mode="HTML")
     else:
         bot.send_message(message.chat.id, "❌ Afsuski, bunday kodli kino topilmadi.")
 
-print("Eski Webhook o'chirilmoqda...")
-bot.remove_webhook()
+# --- FLASK WEBHOOK YO'LLARI (RENDER BEPUL REJIMI UCHUN MAXSUS) ---
+@app.route('/' + TOKEN, methods=['POST'])
+def getMessage():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
 
-print("Bot Polling rejimida ishlamoqda...")
-bot.infinity_polling(skip_pending=True)
+@app.route("/")
+def webhook():
+    bot.remove_webhook()
+    bot.set_webhook(url=RENDER_URL + '/' + TOKEN)
+    return "Bot muvaffaqiyatli Webhook rejimida ishga tushdi!", 200
 
+if __name__ == "__main__":
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
