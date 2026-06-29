@@ -268,5 +268,9 @@ def send_movie_by_code(message):
     else:
         bot.send_message(message.chat.id, "❌ Afsuski, bunday kodli kino topilmadi.")
 
-print("Bot ishlamoqda...")
-bot.infinity_polling()
+print("Eski Webhook o'chirilmoqda...")
+bot.remove_webhook()
+
+print("Bot Polling rejimida ishlamoqda...")
+bot.infinity_polling(skip_pending=True)
+
