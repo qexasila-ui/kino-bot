@@ -18,21 +18,17 @@ def init_db():
     cursor.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, vip_until TEXT)")
     cursor.execute("CREATE TABLE IF NOT EXISTS movies (movie_code TEXT PRIMARY KEY, file_id TEXT, caption TEXT)")
     
-    # 172-KODLI KINO YANGI TO'LIQ FILE_ID BILAN (REPLACE FORMATIDA)
-    kino_172_file_id = "BAACAgIAAxkBAANtajwGs2SBstzAalxyTGhlIQjhYj8AArd7AALrlyFJY596TlbJP_A8BA"
+    # 172-KODLI KINO
+    kino_172_file_id = "BAACAgIAAxkBAANTajwCt7jaShxvUXILSZJGe4NfW1gAAjmrAAIU3uFJkdVCqGMQeBM8BA"
     kino_172_caption = (
-        "🎥 Kino nomi: #ArvohPoygachi\n"
+        "🎥 Kino nomi: #RokerEditz\n"
         "📀 Sifati: 1080p\n\n"
-        "🎞 Keyingi qism kodi: 173\n\n"
         "🍿 @GizaKino_bot — Maxsus siz uchun!"
     )
-    
-    # Bu yerda OR REPLACE qildik, endi bot yangi file_id ni majburing yangilaydi
     cursor.execute(
         "INSERT OR REPLACE INTO movies (movie_code, file_id, caption) VALUES (?, ?, ?)",
         ("172", kino_172_file_id, kino_172_caption)
     )
-    
     conn.commit()
     conn.close()
 
@@ -79,11 +75,10 @@ def main_menu():
     markup.row(types.KeyboardButton("💎 Premium"), types.KeyboardButton("🔍 Kino qidirish"))
     return markup
 
-# --- START BUYRUG'I (TO'G'RILANGAN VERSUYA) ---
+# --- START BUYRUG'I ---
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
     user_id = message.from_user.id
-    # Ismdagi maxsus belgilarni xavfsiz holatga keltiramiz
     safe_name = message.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     
     if not check_subscription(user_id):
@@ -94,10 +89,19 @@ def start_cmd(message):
     else:
         bot.send_message(message.chat.id, f"Xush kelibsiz, {safe_name}!", reply_markup=main_menu())
 
-@bot.callback_query_handler(func=lambda call: call.data in ["buy_humo", "back_main", "send_check"])
-def inline_navigation(call):
+# --- INLINE TUGMALARNI QABUL QILISH (POLING REJIMI UCHUN TO'LIQ TO'G'RILANDI) ---
+@bot.callback_query_handler(func=lambda call: True)
+def handle_all_callbacks(call):
     try:
-        if call.data == "back_main":
+        if call.data == "check_sub":
+            safe_name = call.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            if check_subscription(call.from_user.id):
+                bot.delete_message(call.message.chat.id, call.message.message_id)
+                bot.send_message(call.message.chat.id, f"Obuna tasdiqlandi! Marhamat, {safe_name}.", reply_markup=main_menu())
+            else:
+                bot.answer_callback_query(call.id, "Siz hali kanalga obuna bo'lmagansiz!", show_alert=True)
+        
+        elif call.data == "back_main":
             bot.delete_message(call.message.chat.id, call.message.message_id)
             bot.send_message(call.message.chat.id, "Asosiy menyu", reply_markup=main_menu())
         
@@ -105,25 +109,25 @@ def inline_navigation(call):
             markup = types.InlineKeyboardMarkup()
             markup.add(types.InlineKeyboardButton("📸 Chek yuborish", callback_data="send_check"))
             markup.add(types.InlineKeyboardButton("Orqaga 🔙", callback_data="back_main"))
-            
-            # Markdown o'rniga HTML format ishlatsak xatolik kamroq bo'ladi
-            text = (
-                f"💳 <b>Karta raqam:</b> <code>{CARD_NUMBER}</code>\n\n"
-                f"To'lovni amalga oshirib, pastdagi tugma orqali chekni (rasmini) yuboring."
-            )
+            text = f"💳 <b>Karta raqam:</b> <code>{CARD_NUMBER}</code>\n\nTo'lovni amalga oshirib, pastdagi tugma orqali chekni (rasmini) yuboring."
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
             
         elif call.data == "send_check":
             msg = bot.send_message(call.message.chat.id, "Marhamat, chekni yuboring (Rasm, fayl yoki matn ko'rinishida)...")
             bot.register_next_step_handler(msg, receive_all_checks)
             
-        # Telegram tugma aylanishdan to'xtashi uchun javob qaytaramiz
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        print(f"Inline xatolik: {e}")
-        bot.answer_callback_query(call.id, "Xatolik yuz berdi, qayta urining!", show_alert=True)
+        elif call.data.startswith("reject_"):
+            target_user_id = int(call.data.split("_")[1])
+            bot.send_message(target_user_id, "❌ Xaridingiz tasdiqlanmadi tekshirib qayta yuboring")
+            bot.reply_to(call.message, "Foydalanuvchiga rad etish xabari yuborildi.")
 
+        bot.answer_callback_query(call.id)
+    except Exception as e:
+        print(f"Callback xato: {e}")
+        try:
+            bot.answer_callback_query(call.id, "Xatolik yuz berdi.", show_alert=True)
+        except:
+            pass
 
 # --- PREMIUM BO'LIMI ---
 @bot.message_handler(func=lambda message: message.text == "💎 Premium")
@@ -132,24 +136,7 @@ def premium_sec(message):
     markup.row(types.InlineKeyboardButton("Humo 💳", callback_data="buy_humo"), types.InlineKeyboardButton("Orqaga 🔙", callback_data="back_main"))
     bot.send_message(message.chat.id, "Siz Premium xarid qilmoqchi bo'lsangiz xarid turini tanlang:\n\n💰 1 oy - 10.000 UZS", reply_markup=markup)
 
-@bot.callback_query_handler(func=lambda call: call.data in ["buy_humo", "back_main", "send_check"])
-def inline_navigation(call):
-    if call.data == "back_main":
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.send_message(call.message.chat.id, "Asosiy menyu", reply_markup=main_menu())
-    
-    elif call.data == "buy_humo":
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton("📸 Chek yuborish", callback_data="send_check"))
-        markup.add(types.InlineKeyboardButton("Orqaga 🔙", callback_data="back_main"))
-        text = f"💳 Karta raqam: `{CARD_NUMBER}`\n\nTo'lovni amalga oshirib, pastdagi tugma orqali chekni (rasmini) yuboring."
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
-        
-    elif call.data == "send_check":
-        msg = bot.send_message(call.message.chat.id, "Marhamat, chekni yuboring (Rasm, fayl yoki matn ko'rinishida)...")
-        bot.register_next_step_handler(msg, receive_all_checks)
-
-# --- HAR QANDAY CHEKNI QABUL QILISH ---
+# --- CHEK QABUL QILISH ---
 def receive_all_checks(message):
     user_id = message.from_user.id
     full_name = message.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -179,21 +166,7 @@ def receive_all_checks(message):
             
         bot.send_message(message.chat.id, "Kuting admin ko'rib chiqmoqda...")
     except Exception as e:
-        bot.send_message(message.chat.id, f"Xatolik yuz berdi, qayta urinib ko'ring yoki adminga yozing.")
-        try:
-            bot.send_message(ADMIN_ID, f"🔔 Yangi chek (Zaxira xabar)!\nID: {user_id}\n\nBuyruq: /addvip {user_id}")
-        except Exception:
-            pass
-
-# --- ADMIN RAD ETGANDA ---
-@bot.callback_query_handler(func=lambda call: call.data.startswith("reject_"))
-def reject_payment(call):
-    target_user_id = int(call.data.split("_")[1])
-    try:
-        bot.send_message(target_user_id, "❌ Xaridingiz tasdiqlanmadi tekshirib qayta yuboring")
-        bot.reply_to(call.message, "Foydalanuvchiga rad etish xabari yuborildi.")
-    except Exception as e:
-        bot.reply_to(call.message, f"Xatolik: {e}")
+        bot.send_message(message.chat.id, f"Xatolik yuz berdi, qayta urinib ko'ring.")
 
 # --- ADMIN /ADDVIP BUYRUG'I ---
 @bot.message_handler(commands=['addvip'])
@@ -238,7 +211,6 @@ def admin_save_movie(message, video_id):
     if message.from_user.id != ADMIN_ID:
         return
     try:
-        # Kod va Nomni ajratib olish (Format: KOD | NOMI)
         data = message.text.strip()
         if "|" in data:
             movie_code, movie_name = data.split("|", 1)
@@ -246,9 +218,8 @@ def admin_save_movie(message, video_id):
             movie_name = movie_name.strip()
         else:
             movie_code = data
-            movie_name = "#Edited By Roker"
+            movie_name = "#Noma'lum"
 
-        # Kreativ formatda matn tayyorlash
         kreativ_caption = (
             f"🎥 Kino nomi: #{movie_name.replace(' ', '').replace('#', '')}\n"
             f"📀 Sifati: 1080p\n\n"
@@ -264,7 +235,7 @@ def admin_save_movie(message, video_id):
         conn.commit()
         conn.close()
         
-        bot.reply_to(message, f"✅ Kino bazaga qo'shildi!\n🔑 Kodi: <code>{movie_code}</code>\n\n📝 Matni:\n{kreativ_caption}", parse_mode="HTML")
+        bot.reply_to(message, f"✅ Kino bazaga qo'shildi!\n🔑 Kodi: <code>{movie_code}</code>", parse_mode="HTML")
     except Exception as e:
         bot.reply_to(message, f"Saqlashda xatolik: {e}")
 
@@ -276,7 +247,7 @@ def search_movie_start(message):
         bot.send_message(message.chat.id, f"Avval kanalga obuna bo'ling {CHANNEL}")
         return
     if not is_vip(user_id):
-        bot.send_message(message.chat.id, "⚠️ Kinolarni ko'rish uchun sizda Premium status bo'lek. Iltimos, '💎 Premium' bo'limidan faollashtiring.")
+        bot.send_message(message.chat.id, "⚠️ Kinolarni ko'rish uchun sizda Premium status bo'lishi kerak. Iltimos, '💎 Premium' bo'limidan faollashtiring.")
         return
     msg = bot.send_message(message.chat.id, "Marhamat, kino kodini yuboring:")
     bot.register_next_step_handler(msg, send_movie_by_code)
@@ -291,10 +262,8 @@ def send_movie_by_code(message):
     
     if res:
         file_id, caption = res[0], res[1]
-        # Agar eski bazadan qolgan kinolarda tekst bo'lmasa, standart tekst qo'yadi
         if not caption:
             caption = f"🎬 Kod: {movie_code}\n\n🍿 @GizaKino_bot — Maxsus siz uchun!"
-            
         bot.send_video(message.chat.id, file_id, caption=caption, parse_mode="HTML")
     else:
         bot.send_message(message.chat.id, "❌ Afsuski, bunday kodli kino topilmadi.")
