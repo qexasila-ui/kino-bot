@@ -94,14 +94,36 @@ def start_cmd(message):
     else:
         bot.send_message(message.chat.id, f"Xush kelibsiz, {safe_name}!", reply_markup=main_menu())
 
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def check_sub_callback(call):
-    safe_name = call.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    if check_subscription(call.from_user.id):
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.send_message(call.message.chat.id, f"Obuna tasdiqlandi! Marhamat, {safe_name}.", reply_markup=main_menu())
-    else:
-        bot.answer_callback_query(call.id, "Siz hali kanalga obuna bo'lmagansiz!", show_alert=True)
+@bot.callback_query_handler(func=lambda call: call.data in ["buy_humo", "back_main", "send_check"])
+def inline_navigation(call):
+    try:
+        if call.data == "back_main":
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            bot.send_message(call.message.chat.id, "Asosiy menyu", reply_markup=main_menu())
+        
+        elif call.data == "buy_humo":
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("📸 Chek yuborish", callback_data="send_check"))
+            markup.add(types.InlineKeyboardButton("Orqaga 🔙", callback_data="back_main"))
+            
+            # Markdown o'rniga HTML format ishlatsak xatolik kamroq bo'ladi
+            text = (
+                f"💳 <b>Karta raqam:</b> <code>{CARD_NUMBER}</code>\n\n"
+                f"To'lovni amalga oshirib, pastdagi tugma orqali chekni (rasmini) yuboring."
+            )
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
+            
+        elif call.data == "send_check":
+            msg = bot.send_message(call.message.chat.id, "Marhamat, chekni yuboring (Rasm, fayl yoki matn ko'rinishida)...")
+            bot.register_next_step_handler(msg, receive_all_checks)
+            
+        # Telegram tugma aylanishdan to'xtashi uchun javob qaytaramiz
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        print(f"Inline xatolik: {e}")
+        bot.answer_callback_query(call.id, "Xatolik yuz berdi, qayta urining!", show_alert=True)
+
 
 # --- PREMIUM BO'LIMI ---
 @bot.message_handler(func=lambda message: message.text == "💎 Premium")
