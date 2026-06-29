@@ -93,10 +93,13 @@ def start_cmd(message):
     else:
         bot.send_message(message.chat.id, f"Xush kelibsiz, {safe_name}!", reply_markup=main_menu())
 
-# --- INLINE TUGMALAR ---
+# --- INLINE TUGMALAR (WEBHOOK UCHUN ENX XAVFSIZ VARIANT) ---
 @bot.callback_query_handler(func=lambda call: True)
 def handle_all_callbacks(call):
     try:
+        # Telegram qotib qolmasligi uchun darhol javob qaytaramiz
+        bot.answer_callback_query(call.id)
+
         if call.data == "check_sub":
             safe_name = call.from_user.full_name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             if check_subscription(call.from_user.id):
@@ -110,24 +113,27 @@ def handle_all_callbacks(call):
             bot.send_message(call.message.chat.id, "Asosiy menyu", reply_markup=main_menu())
         
         elif call.data == "buy_humo":
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("📸 Chek yuborish", callback_data="send_check"))
-            markup.add(types.InlineKeyboardButton("Orqaga 🔙", callback_data="back_main"))
-            text = f"💳 <b>Karta raqam:</b> <code>{CARD_NUMBER}</code>\n\nTo'lovni amalga oshirib, pastdagi tugma orqali chekni (rasmini) yuboring."
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
+            # Xabarni o'chirib, yangitdan yuboramiz. Bu Webhook'da xatolik bermaydi!
+            bot.delete_message(call.message.chat.id, call.message.message_id)
             
-        elif call.data == "send_check":
-            msg = bot.send_message(call.message.chat.id, "Marhamat, chekni yuboring (Rasm, fayl yoki matn ko'rinishida)...")
-            bot.register_next_step_handler(msg, receive_all_checks)
+            markup = types.InlineKeyboardMarkup()
+            markup.add(types.InlineKeyboardButton("Orqaga 🔙", callback_data="back_main"))
+            
+            text = (
+                f"💳 <b>Karta raqam:</b> <code>{CARD_NUMBER}</code>\n\n"
+                f"To'lovni amalga oshirib, adminga (<b>@Roker_Editz</b>) chekni yuboring.\n\n"
+                f"<i>Admin to'lovni tekshirib, sizga VIP status beradi!</i>"
+            )
+            bot.send_message(call.message.chat.id, text, reply_markup=markup, parse_mode="HTML")
             
         elif call.data.startswith("reject_"):
             target_user_id = int(call.data.split("_")[1])
             bot.send_message(target_user_id, "❌ Xaridingiz tasdiqlanmadi tekshirib qayta yuboring")
             bot.reply_to(call.message, "Foydalanuvchiga rad etish xabari yuborildi.")
 
-        bot.answer_callback_query(call.id)
     except Exception as e:
         print(f"Callback xato: {e}")
+
 
 # --- PREMIUM BO'LIMI ---
 @bot.message_handler(func=lambda message: message.text == "💎 Premium")
